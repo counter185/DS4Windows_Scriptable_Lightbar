@@ -30,6 +30,10 @@ namespace DS4WinWPF
         private static volatile bool isInLoop = false;
         private static volatile int execsRunning = 0;
 
+        private static volatile UInt32 refreshRate = 64;
+        private static volatile UInt32 animLength = 500;
+        private static volatile UInt32 animCounter = 0;
+
         private static volatile List<string> InitialScript = new List<string>();
         private static volatile List<string> LoopingScript = new List<string>();
         private static volatile List<string> ExecCondScript = new List<string>();
@@ -61,6 +65,7 @@ namespace DS4WinWPF
         public static void Begin() {
             Console.WriteLine(scanAndHookOntoGame());
             new Thread(ScanManagerLoop).Start();
+            new Thread(UpdateAnim).Start();
         }
 
         public static void ScanManagerLoop() {
@@ -82,6 +87,18 @@ namespace DS4WinWPF
                     Thread.Sleep(5000);
                 }
             }
+        }
+
+        public static void UpdateAnim() {
+            while (true)
+            {
+                animCounter += refreshRate;
+                if (animCounter > 2 * animLength) {
+                    animCounter -= 2 * animLength;
+                }
+                Thread.Sleep((int)refreshRate);
+            }
+
         }
 
         public static void CleanVars() {
@@ -215,6 +232,14 @@ namespace DS4WinWPF
                     case "retn":
                         //progcnt = 0;
                         return getDwordValue(a[1], ref qlist, ref dlist, ref blist, DS4_ID);
+                    case "retf":
+                        if (animCounter < animLength)
+                        {
+                            return getDwordValue(a[1], ref qlist, ref dlist, ref blist, DS4_ID);
+                        }
+                        else {
+                            return getDwordValue("0x000000", ref qlist, ref dlist, ref blist, DS4_ID);
+                        }
                     default:
                         throw new ArgumentException("Invalid instruction: " + a[0]);
                 }
@@ -413,6 +438,15 @@ namespace DS4WinWPF
         }
         private static bool SetD(string name, string value, bool inLoop, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, int DS4_ID)
         {
+            if (name == "LEN_ANIM")
+            {
+                animLength = getDwordValue(value, ref qlist, ref dlist, ref blist, DS4_ID);
+                return true;
+            }
+            else if (name == "REFRESH") {
+                refreshRate = getDwordValue(value, ref qlist, ref dlist, ref blist, DS4_ID);
+                return true;
+            }
             for (int idx = 0; idx != dlist.Count; idx++)
             {
                 if (dlist[idx].name == name)
