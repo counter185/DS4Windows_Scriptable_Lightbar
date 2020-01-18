@@ -1,7 +1,9 @@
 This is my fork of DS4Windows, that adds a scripting language that can read the memory of a process and control the players' lightbars accordingly
+
 I will make a documentation on how to write a script on the wiki soon
 
 A sample script is included in a release package
+
 This script is for the European version of Super Mario 3D World running on Cemu, and will change the color of a player's lightbar depending on which character they choose
 
 Of course, the app hooks onto a process, so be careful with hooking into online games.
