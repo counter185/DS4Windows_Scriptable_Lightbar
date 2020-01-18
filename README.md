@@ -6,6 +6,11 @@ This script is for the European version of Super Mario 3D World running on Cemu,
 
 Of course, the app hooks onto a process, so be careful with hooking into online games.
 
+How to build:
+- Import the Nefarius.ViGEm.Client DLL into the project
+- Set the architecture from "Any CPU" to "x64".
+This is so that we can read 64-bit addresses.
+
 # Original description below
 
 # DS4Windows
