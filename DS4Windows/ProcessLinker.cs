@@ -72,7 +72,7 @@ namespace DS4WinWPF
                         scanAndHookOntoGame();
                         
                     }
-                    if (process.HasExited) {
+                    if (procHooked && process.HasExited) {
                         procHooked = false;
                     }
                     Thread.Sleep(2000);
