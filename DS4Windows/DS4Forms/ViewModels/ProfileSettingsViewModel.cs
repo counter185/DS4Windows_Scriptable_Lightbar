@@ -280,6 +280,15 @@ namespace DS4WinWPF.DS4Forms.ViewModels
             }
         }
 
+        public bool UseScripts
+        {
+            get => Global.UseScripts[device];
+            set
+            {
+                Global.UseScripts[device] = value;
+            }
+        }
+
         public string ChargingColor
         {
             get

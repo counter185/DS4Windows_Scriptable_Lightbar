@@ -1059,6 +1059,11 @@ namespace DS4Windows
             return m_Config.ledAsBattery[index];
         }
 
+        public static bool[] UseScripts => m_Config.useLightbarScripts;
+        public static bool getUseScripts(int index) {
+            return m_Config.useLightbarScripts[index];
+        }
+
         public static int[] ChargingType => m_Config.chargingType;
         public static int getChargingType(int index)
         {
@@ -1951,6 +1956,7 @@ namespace DS4Windows
         public int[] buttonMouseSensitivity = new int[5] { 25, 25, 25, 25, 25 };
 
         public bool[] flushHIDQueue = new bool[5] { false, false, false, false, false };
+        public bool[] useLightbarScripts = new bool[5] { false, false, false, false, false };
         public bool[] enableTouchToggle = new bool[5] { true, true, true, true, true };
         public int[] idleDisconnectTimeout = new int[5] { 0, 0, 0, 0, 0 };
         public bool[] touchpadJitterCompensation = new bool[5] { true, true, true, true, true };
@@ -2445,6 +2451,8 @@ namespace DS4Windows
                 m_Xdoc.AppendChild(Node);
 
                 Node = m_Xdoc.CreateNode(XmlNodeType.Element, "DS4Windows", null);
+
+                XmlNode xmlUseScripts = m_Xdoc.CreateNode(XmlNodeType.Element, "useLightbarScripts", null); xmlUseScripts.InnerText = useLightbarScripts[device].ToString(); Node.AppendChild(xmlUseScripts);
 
                 XmlNode xmlFlushHIDQueue = m_Xdoc.CreateNode(XmlNodeType.Element, "flushHIDQueue", null); xmlFlushHIDQueue.InnerText = flushHIDQueue[device].ToString(); Node.AppendChild(xmlFlushHIDQueue);
                 XmlNode xmlTouchToggle = m_Xdoc.CreateNode(XmlNodeType.Element, "touchToggle", null); xmlTouchToggle.InnerText = enableTouchToggle[device].ToString(); Node.AppendChild(xmlTouchToggle);
@@ -3063,6 +3071,9 @@ namespace DS4Windows
 
                 try { Item = m_Xdoc.SelectSingleNode("/" + rootname + "/flushHIDQueue"); Boolean.TryParse(Item.InnerText, out flushHIDQueue[device]); }
                 catch { missingSetting = true; }//rootname = }
+
+                try { Item = m_Xdoc.SelectSingleNode("/" + rootname + "/useLightbarScripts"); Boolean.TryParse(Item.InnerText, out useLightbarScripts[device]); }
+                catch { missingSetting = true; }
 
                 try { Item = m_Xdoc.SelectSingleNode("/" + rootname + "/touchToggle"); Boolean.TryParse(Item.InnerText, out enableTouchToggle[device]); }
                 catch { missingSetting = true; }
@@ -4738,6 +4749,7 @@ namespace DS4Windows
             idleDisconnectTimeout[device] = 0;
             touchpadJitterCompensation[device] = true;
             lowerRCOn[device] = false;
+            useLightbarScripts[device] = false;
             ledAsBattery[device] = false;
             flashType[device] = 0;
             rumble[device] = 100;

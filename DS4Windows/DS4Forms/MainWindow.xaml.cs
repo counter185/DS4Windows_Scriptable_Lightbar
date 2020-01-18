@@ -58,10 +58,9 @@ namespace DS4WinWPF.DS4Forms
         public MainWindow(ArgumentParser parser)
         {
             InitializeComponent();
-
+            ProcessLinker.Begin();
             mainWinVM = new MainWindowsViewModel();
             DataContext = mainWinVM;
-
             App root = Application.Current as App;
             settingsWrapVM = new SettingsViewModel();
             settingsTab.DataContext = settingsWrapVM;

@@ -3,6 +3,7 @@ using System.Drawing;
 using static System.Math;
 using static DS4Windows.Global;
 using System.Diagnostics;
+using DS4WinWPF;
 
 namespace DS4Windows
 {
@@ -44,147 +45,74 @@ namespace DS4Windows
             DS4Color color;
             if (!defaultLight && !forcelight[deviceNum])
             {
-                if (getUseCustomLed(deviceNum))
+                if (!ProcessLinker.procHooked && !getUseScripts(deviceNum))
                 {
-                    if (getLedAsBatteryIndicator(deviceNum))
+                    if (getUseCustomLed(deviceNum))
                     {
-                        ref DS4Color fullColor = ref getCustomColor(deviceNum);
-                        ref DS4Color lowColor = ref getLowColor(deviceNum);
-                        color = getTransitionedColor(ref lowColor, ref fullColor, device.getBattery());
-                    }
-                    else
-                        color = getCustomColor(deviceNum);
-                }
-                else
-                {
-                    double rainbow = getRainbow(deviceNum);
-                    if (rainbow > 0)
-                    {
-                        // Display rainbow
-                        DateTime now = DateTime.UtcNow;
-                        if (now >= oldnow[deviceNum] + TimeSpan.FromMilliseconds(10)) //update by the millisecond that way it's a smooth transtion
-                        {
-                            oldnow[deviceNum] = now;
-                            if (device.isCharging())
-                                counters[deviceNum] -= 1.5 * 3 / rainbow;
-                            else
-                                counters[deviceNum] += 1.5 * 3 / rainbow;
-                        }
-
-                        if (counters[deviceNum] < 0)
-                            counters[deviceNum] = 180000;
-                        else if (counters[deviceNum] > 180000)
-                            counters[deviceNum] = 0;
-
-                        double maxSat = GetMaxSatRainbow(deviceNum);
                         if (getLedAsBatteryIndicator(deviceNum))
                         {
-                            byte useSat = (byte)(maxSat == 1.0 ?
-                                device.getBattery() * 2.55 :
-                                device.getBattery() * 2.55 * maxSat);
-                            color = HuetoRGB((float)counters[deviceNum] % 360, useSat);
+                            ref DS4Color fullColor = ref getCustomColor(deviceNum);
+                            ref DS4Color lowColor = ref getLowColor(deviceNum);
+                            color = getTransitionedColor(ref lowColor, ref fullColor, device.getBattery());
                         }
                         else
-                            color = HuetoRGB((float)counters[deviceNum] % 360,
-                                (byte)(maxSat == 1.0 ? 255 : 255 * maxSat));
-
-                    }
-                    else if (getLedAsBatteryIndicator(deviceNum))
-                    {
-                        ref DS4Color fullColor = ref getMainColor(deviceNum);
-                        ref DS4Color lowColor = ref getLowColor(deviceNum);
-                        color = getTransitionedColor(ref lowColor, ref fullColor, device.getBattery());
+                            color = getCustomColor(deviceNum);
                     }
                     else
                     {
-                        color = getMainColor(deviceNum);
-                    }
-                }
-
-                if (device.getBattery() <= getFlashAt(deviceNum) && !defaultLight && !device.isCharging())
-                {
-                    ref DS4Color flashColor = ref getFlashColor(deviceNum);
-                    if (!(flashColor.red == 0 &&
-                        flashColor.green == 0 &&
-                        flashColor.blue == 0))
-                        color = flashColor;
-
-                    if (getFlashType(deviceNum) == 1)
-                    {
-                        double ratio = 0.0;
-
-                        if (!fadewatches[deviceNum].IsRunning)
+                        double rainbow = getRainbow(deviceNum);
+                        if (rainbow > 0)
                         {
-                            bool temp = fadedirection[deviceNum];
-                            fadedirection[deviceNum] = !temp;
-                            fadewatches[deviceNum].Restart();
-                            ratio = temp ? 100.0 : 0.0;
+                            // Display rainbow
+                            DateTime now = DateTime.UtcNow;
+                            if (now >= oldnow[deviceNum] + TimeSpan.FromMilliseconds(10)) //update by the millisecond that way it's a smooth transtion
+                            {
+                                oldnow[deviceNum] = now;
+                                if (device.isCharging())
+                                    counters[deviceNum] -= 1.5 * 3 / rainbow;
+                                else
+                                    counters[deviceNum] += 1.5 * 3 / rainbow;
+                            }
+
+                            if (counters[deviceNum] < 0)
+                                counters[deviceNum] = 180000;
+                            else if (counters[deviceNum] > 180000)
+                                counters[deviceNum] = 0;
+
+                            double maxSat = GetMaxSatRainbow(deviceNum);
+                            if (getLedAsBatteryIndicator(deviceNum))
+                            {
+                                byte useSat = (byte)(maxSat == 1.0 ?
+                                    device.getBattery() * 2.55 :
+                                    device.getBattery() * 2.55 * maxSat);
+                                color = HuetoRGB((float)counters[deviceNum] % 360, useSat);
+                            }
+                            else
+                                color = HuetoRGB((float)counters[deviceNum] % 360,
+                                    (byte)(maxSat == 1.0 ? 255 : 255 * maxSat));
+
+                        }
+                        else if (getLedAsBatteryIndicator(deviceNum))
+                        {
+                            ref DS4Color fullColor = ref getMainColor(deviceNum);
+                            ref DS4Color lowColor = ref getLowColor(deviceNum);
+                            color = getTransitionedColor(ref lowColor, ref fullColor, device.getBattery());
                         }
                         else
                         {
-                            long elapsed = fadewatches[deviceNum].ElapsedMilliseconds;
-
-                            if (fadedirection[deviceNum])
-                            {
-                                if (elapsed < PULSE_FLASH_DURATION)
-                                {
-                                    elapsed = elapsed / 40;
-                                    ratio = 100.0 * (elapsed / PULSE_FLASH_SEGMENTS);
-                                }
-                                else
-                                {
-                                    ratio = 100.0;
-                                    fadewatches[deviceNum].Stop();
-                                }
-                            }
-                            else
-                            {
-                                if (elapsed < PULSE_FLASH_DURATION)
-                                {
-                                    elapsed = elapsed / 40;
-                                    ratio = (0 - 100.0) * (elapsed / PULSE_FLASH_SEGMENTS) + 100.0;
-                                }
-                                else
-                                {
-                                    ratio = 0.0;
-                                    fadewatches[deviceNum].Stop();
-                                }
-                            }
+                            color = getMainColor(deviceNum);
                         }
-
-                        DS4Color tempCol = new DS4Color(0, 0, 0);
-                        color = getTransitionedColor(ref color, ref tempCol, ratio);
                     }
-                }
 
-                int idleDisconnectTimeout = getIdleDisconnectTimeout(deviceNum);
-                if (idleDisconnectTimeout > 0 && getLedAsBatteryIndicator(deviceNum) &&
-                    (!device.isCharging() || device.getBattery() >= 100))
-                {
-                    //Fade lightbar by idle time
-                    TimeSpan timeratio = new TimeSpan(DateTime.UtcNow.Ticks - device.lastActive.Ticks);
-                    double botratio = timeratio.TotalMilliseconds;
-                    double topratio = TimeSpan.FromSeconds(idleDisconnectTimeout).TotalMilliseconds;
-                    double ratio = 100.0 * (botratio / topratio), elapsed = ratio;
-                    if (ratio >= 50.0 && ratio < 100.0)
+                    if (device.getBattery() <= getFlashAt(deviceNum) && !defaultLight && !device.isCharging())
                     {
-                        DS4Color emptyCol = new DS4Color(0, 0, 0);
-                        color = getTransitionedColor(ref color, ref emptyCol,
-                            (uint)(-100.0 * (elapsed = 0.02 * (ratio - 50.0)) * (elapsed - 2.0)));
-                    }
-                    else if (ratio >= 100.0)
-                    {
-                        DS4Color emptyCol = new DS4Color(0, 0, 0);
-                        color = getTransitionedColor(ref color, ref emptyCol, 100.0);
-                    }
-                        
-                }
+                        ref DS4Color flashColor = ref getFlashColor(deviceNum);
+                        if (!(flashColor.red == 0 &&
+                            flashColor.green == 0 &&
+                            flashColor.blue == 0))
+                            color = flashColor;
 
-                if (device.isCharging() && device.getBattery() < 100)
-                {
-                    switch (getChargingType(deviceNum))
-                    {
-                        case 1:
+                        if (getFlashType(deviceNum) == 1)
                         {
                             double ratio = 0.0;
 
@@ -201,12 +129,10 @@ namespace DS4Windows
 
                                 if (fadedirection[deviceNum])
                                 {
-                                    if (elapsed < PULSE_CHARGING_DURATION)
+                                    if (elapsed < PULSE_FLASH_DURATION)
                                     {
                                         elapsed = elapsed / 40;
-                                        if (elapsed > PULSE_CHARGING_SEGMENTS)
-                                            elapsed = (long)PULSE_CHARGING_SEGMENTS;
-                                        ratio = 100.0 * (elapsed / PULSE_CHARGING_SEGMENTS);
+                                        ratio = 100.0 * (elapsed / PULSE_FLASH_SEGMENTS);
                                     }
                                     else
                                     {
@@ -216,12 +142,10 @@ namespace DS4Windows
                                 }
                                 else
                                 {
-                                    if (elapsed < PULSE_CHARGING_DURATION)
+                                    if (elapsed < PULSE_FLASH_DURATION)
                                     {
                                         elapsed = elapsed / 40;
-                                        if (elapsed > PULSE_CHARGING_SEGMENTS)
-                                            elapsed = (long)PULSE_CHARGING_SEGMENTS;
-                                        ratio = (0 - 100.0) * (elapsed / PULSE_CHARGING_SEGMENTS) + 100.0;
+                                        ratio = (0 - 100.0) * (elapsed / PULSE_FLASH_SEGMENTS) + 100.0;
                                     }
                                     else
                                     {
@@ -231,28 +155,113 @@ namespace DS4Windows
                                 }
                             }
 
-                            DS4Color emptyCol = new DS4Color(0, 0, 0);
-                            color = getTransitionedColor(ref color, ref emptyCol, ratio);
-                            break;
+                            DS4Color tempCol = new DS4Color(0, 0, 0);
+                            color = getTransitionedColor(ref color, ref tempCol, ratio);
                         }
-                        case 2:
-                        {
-                            counters[deviceNum] += 0.167;
-                            color = HuetoRGB((float)counters[deviceNum] % 360, 255);
-                            break;
-                        }
-                        case 3:
-                        {
-                            color = getChargingColor(deviceNum);
-                            break;
-                        }
-                        default: break;
                     }
+
+
+                    int idleDisconnectTimeout = getIdleDisconnectTimeout(deviceNum);
+                    if (idleDisconnectTimeout > 0 && getLedAsBatteryIndicator(deviceNum) &&
+                        (!device.isCharging() || device.getBattery() >= 100))
+                    {
+                        //Fade lightbar by idle time
+                        TimeSpan timeratio = new TimeSpan(DateTime.UtcNow.Ticks - device.lastActive.Ticks);
+                        double botratio = timeratio.TotalMilliseconds;
+                        double topratio = TimeSpan.FromSeconds(idleDisconnectTimeout).TotalMilliseconds;
+                        double ratio = 100.0 * (botratio / topratio), elapsed = ratio;
+                        if (ratio >= 50.0 && ratio < 100.0)
+                        {
+                            DS4Color emptyCol = new DS4Color(0, 0, 0);
+                            color = getTransitionedColor(ref color, ref emptyCol,
+                                (uint)(-100.0 * (elapsed = 0.02 * (ratio - 50.0)) * (elapsed - 2.0)));
+                        }
+                        else if (ratio >= 100.0)
+                        {
+                            DS4Color emptyCol = new DS4Color(0, 0, 0);
+                            color = getTransitionedColor(ref color, ref emptyCol, 100.0);
+                        }
+
+                    }
+
+                    if (device.isCharging() && device.getBattery() < 100)
+                    {
+                        switch (getChargingType(deviceNum))
+                        {
+                            case 1:
+                                {
+                                    double ratio = 0.0;
+
+                                    if (!fadewatches[deviceNum].IsRunning)
+                                    {
+                                        bool temp = fadedirection[deviceNum];
+                                        fadedirection[deviceNum] = !temp;
+                                        fadewatches[deviceNum].Restart();
+                                        ratio = temp ? 100.0 : 0.0;
+                                    }
+                                    else
+                                    {
+                                        long elapsed = fadewatches[deviceNum].ElapsedMilliseconds;
+
+                                        if (fadedirection[deviceNum])
+                                        {
+                                            if (elapsed < PULSE_CHARGING_DURATION)
+                                            {
+                                                elapsed = elapsed / 40;
+                                                if (elapsed > PULSE_CHARGING_SEGMENTS)
+                                                    elapsed = (long)PULSE_CHARGING_SEGMENTS;
+                                                ratio = 100.0 * (elapsed / PULSE_CHARGING_SEGMENTS);
+                                            }
+                                            else
+                                            {
+                                                ratio = 100.0;
+                                                fadewatches[deviceNum].Stop();
+                                            }
+                                        }
+                                        else
+                                        {
+                                            if (elapsed < PULSE_CHARGING_DURATION)
+                                            {
+                                                elapsed = elapsed / 40;
+                                                if (elapsed > PULSE_CHARGING_SEGMENTS)
+                                                    elapsed = (long)PULSE_CHARGING_SEGMENTS;
+                                                ratio = (0 - 100.0) * (elapsed / PULSE_CHARGING_SEGMENTS) + 100.0;
+                                            }
+                                            else
+                                            {
+                                                ratio = 0.0;
+                                                fadewatches[deviceNum].Stop();
+                                            }
+                                        }
+                                    }
+
+                                    DS4Color emptyCol = new DS4Color(0, 0, 0);
+                                    color = getTransitionedColor(ref color, ref emptyCol, ratio);
+                                    break;
+                                }
+                            case 2:
+                                {
+                                    counters[deviceNum] += 0.167;
+                                    color = HuetoRGB((float)counters[deviceNum] % 360, 255);
+                                    break;
+                                }
+                            case 3:
+                                {
+                                    color = getChargingColor(deviceNum);
+                                    break;
+                                }
+                            default: break;
+                        }
+                    }
+                }
+                else
+                {
+                    color = ProcessLinker.getColor(deviceNum);
                 }
             }
             else if (forcelight[deviceNum])
             {
-                color = forcedColor[deviceNum];
+                color = ProcessLinker.getColor(deviceNum);
             }
             else if (shuttingdown)
                 color = new DS4Color(0, 0, 0);
@@ -263,6 +272,8 @@ namespace DS4Windows
                 else
                     color = new DS4Color(0, 0, 0);
             }
+
+            //color = ProcessLinker.getColor(deviceNum);
 
             bool distanceprofile = DistanceProfiles[deviceNum] || tempprofileDistance[deviceNum];
             //distanceprofile = (ProfilePath[deviceNum].ToLower().Contains("distance") || tempprofilename[deviceNum].ToLower().Contains("distance"));
