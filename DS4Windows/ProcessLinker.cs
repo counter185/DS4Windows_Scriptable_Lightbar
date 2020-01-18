@@ -197,6 +197,9 @@ namespace DS4WinWPF
                     case "cond":
                         Cond(a[1], a[2], ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
                         break;
+                    case "cnnq":
+                        CnNQ(a[1], a[2], ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
+                        break;
                     case "cngr":
                         CnGR(a[1], a[2], ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
                         break;
@@ -476,6 +479,13 @@ namespace DS4WinWPF
         private static void Cond(string value1, string value2, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref int progcnt, int DS4_ID)
         {
             if (getQwordValue(value1, ref qlist, ref dlist, ref blist, DS4_ID) != getQwordValue(value2, ref qlist, ref dlist, ref blist, DS4_ID))
+            {
+                progcnt++;
+            }
+        }
+        private static void CnNQ(string value1, string value2, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref int progcnt, int DS4_ID)
+        {
+            if (getQwordValue(value1, ref qlist, ref dlist, ref blist, DS4_ID) == getQwordValue(value2, ref qlist, ref dlist, ref blist, DS4_ID))
             {
                 progcnt++;
             }
