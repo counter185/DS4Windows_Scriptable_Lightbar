@@ -108,7 +108,10 @@ namespace DS4WinWPF
         }
 
         public static bool scanAndHookOntoGame() {
-            foreach (string a in Directory.GetFiles(Directory.GetCurrentDirectory())) {
+            if (!Directory.Exists(Directory.GetCurrentDirectory() + "/LightbarScripts/")) {
+                Directory.CreateDirectory(Directory.GetCurrentDirectory() + "/LightbarScripts/");
+            }
+            foreach (string a in Directory.GetFiles(Directory.GetCurrentDirectory() + "/LightbarScripts/")) {
                 if (a.ToLower().EndsWith(".ds4lb"))
                 {
                     List<string> lines = File.ReadLines(a).ToList<string>();
