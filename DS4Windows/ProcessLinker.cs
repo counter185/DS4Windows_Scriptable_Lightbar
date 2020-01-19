@@ -49,7 +49,7 @@ namespace DS4WinWPF
         public struct ConnectedProc {
             public IntPtr procPointer;
             public Process proc;
-            public int procID;
+            public string procName;
         }
         public struct QWord
         {
@@ -69,15 +69,6 @@ namespace DS4WinWPF
 
         private static Thread ScannerThread;
         private static Thread AnimUpdateThread;
-
-        private static ConnectedProc GetProcessPtr(int procID) { //spaghet
-            foreach (ConnectedProc a in hookedProcs) {
-                if (a.procID == procID) {
-                    return a;
-                }
-            }
-            throw new NullReferenceException();
-        }
 
         public static void GameEnd() {
             ScannerThread.Abort();
@@ -106,6 +97,12 @@ namespace DS4WinWPF
             while (true) {
                 if ((Global.getUseScripts(0) || Global.getUseScripts(1) || Global.getUseScripts(2) || Global.getUseScripts(3)))
                 {
+                    for (int x = 0; x != hookedProcs.Count; x++) {
+                        if (hookedProcs[x].proc.HasExited) {
+                            hookedProcs.RemoveAt(x);
+                            x--;
+                        }
+                    }
                     if (!procHooked)
                     {
                         scanAndHookOntoGame();
@@ -146,14 +143,77 @@ namespace DS4WinWPF
             foreach (List<string> a in AllScripts)
             {
                 List<string> lines = a;
-                bool found = false;
                 foreach (string b in lines)
                 {
                     if (b.StartsWith("hookproc"))
                     {
                         if (Process.GetProcessesByName(b.Split()[1]).Length != 0)
                         {
-                            found = true;
+                            ConnectedProc c = new ConnectedProc();
+                            bool found = false;
+                            foreach (ConnectedProc d in hookedProcs) {
+                                if (d.procName == b.Split()[1]) {
+                                    c = d;
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found)
+                            {
+                                Console.WriteLine("Process struct created");
+                                c.proc = Process.GetProcessesByName(b.Split()[1])[0];
+                                c.procName = b.Split()[1];
+                                c.procPointer = OpenProcess(PROCESS_WM_READ, false, c.proc.Id);
+                                hookedProcs.Add(c);
+                            }
+                            bool writingToExec = false;
+                            bool writingToLoop = false;
+                            List<string> inscr = new List<string>();
+                            List<string> condscr = new List<string>();
+                            List<string> loopscr = new List<string>();
+                            foreach (string d in lines)
+                            {
+                                if (!d.StartsWith("//") && d != "")
+                                {
+                                    if (d == "execcond")
+                                    {
+                                        writingToExec = true;
+                                        writingToLoop = false;
+                                    }
+                                    else if (d == "startloop")
+                                    {
+                                        writingToExec = false;
+                                        writingToLoop = true;
+                                    }
+                                    if (!writingToLoop && !writingToExec)
+                                    {
+                                        inscr.Add(d);
+                                    }
+                                    else if (writingToLoop)
+                                    {
+                                        loopscr.Add(d);
+                                    }
+                                    else if (writingToExec)
+                                    {
+                                        condscr.Add(d);
+                                    }
+
+                                }
+                            }
+                            ExecUntilReturn(inscr, false, true, ref qwords, ref dwords, ref bwords, 0);
+                            if (ExecUntilReturn(condscr, true, true, ref qwords, ref dwords, ref bwords, 0) != 0x00)
+                            {
+                                procHooked = true;
+                                InitialScript = inscr;
+                                LoopingScript = loopscr;
+                                ExecCondScript = condscr;
+                                return true;
+                            }
+                            else
+                            {
+                                DetachProcess();
+                                CleanVars();
+                            }
                             break;
                         }
                         else {
@@ -161,58 +221,6 @@ namespace DS4WinWPF
                         }
                     }
                 }
-                if (found)
-                {
-                    bool writingToExec = false;
-                    bool writingToLoop = false;
-                    List<string> inscr = new List<string>();
-                    List<string> condscr = new List<string>();
-                    List<string> loopscr = new List<string>();
-                    foreach (string b in lines)
-                    {
-                        if (!b.StartsWith("//") && b != "")
-                        {
-                            if (b == "execcond")
-                            {
-                                writingToExec = true;
-                                writingToLoop = false;
-                            }
-                            else if (b == "startloop")
-                            {
-                                writingToExec = false;
-                                writingToLoop = true;
-                            }
-                            if (!writingToLoop && !writingToExec)
-                            {
-                                inscr.Add(b);
-                            }
-                            else if (writingToLoop)
-                            {
-                                loopscr.Add(b);
-                            }
-                            else if (writingToExec)
-                            {
-                                condscr.Add(b);
-                            }
-
-                        }
-                    }
-                    ExecUntilReturn(inscr, false, true, ref qwords, ref dwords, ref bwords, 0);
-                    if (ExecUntilReturn(condscr, true, true, ref qwords, ref dwords, ref bwords, 0) != 0x00)
-                    {
-                        procHooked = true;
-                        InitialScript = inscr;
-                        LoopingScript = loopscr;
-                        ExecCondScript = condscr;
-                        return true;
-                    }
-                    else
-                    {
-                        DetachProcess();
-                        CleanVars();
-                    }
-                }
-
             }
             return false;
         }
@@ -447,14 +455,6 @@ namespace DS4WinWPF
             }
         }
 
-        private static void SaveHookedProcess(int id, IntPtr pointer, Process proc) {
-            ConnectedProc a = new ConnectedProc();
-            a.procID = id;
-            a.procPointer = pointer;
-            a.proc = proc;
-            hookedProcs.Add(a);
-        }
-
         private static void HookOntoProcess(string procname, bool testmode)
         {
             if (!procHooked)
@@ -464,16 +464,7 @@ namespace DS4WinWPF
                     Thread.Sleep(500);
                 }
                 process = Process.GetProcessesByName(procname)[0];
-                ConnectedProc ProcessPtr;
-                try
-                {
-                    ProcessPtr = GetProcessPtr(process.Id);
-                }
-                catch (NullReferenceException) {
-                    SaveHookedProcess(process.Id, OpenProcess(PROCESS_WM_READ, false, process.Id), process);
-                    ProcessPtr = GetProcessPtr(process.Id);
-                }
-                processHandle = ProcessPtr.procPointer;
+                processHandle = OpenProcess(PROCESS_WM_READ, false, process.Id);
                 if (!testmode)
                 {
                     procHooked = true;
