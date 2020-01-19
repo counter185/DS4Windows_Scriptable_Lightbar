@@ -28,9 +28,8 @@ namespace DS4WinWPF
 
         public static volatile bool procHooked = false;
         private static volatile bool isInLoop = false;
-        private static volatile int execsRunning = 0;
 
-        private static volatile UInt32 refreshRate = 64;
+        private static volatile UInt32 refreshRate = 128;
         private static volatile UInt32 animLength = 500;
         private static volatile UInt32 animCounter = 0;
 
@@ -41,31 +40,66 @@ namespace DS4WinWPF
         private static volatile List<DWord> dwords = new List<DWord>();
         private static volatile List<BWord> bwords = new List<BWord>();
 
+        private static List<List<string>> AllScripts = new List<List<string>>();
 
         private static DS4Color[] controllerColors = new DS4Color[5];
+
+        private static List<ConnectedProc> hookedProcs = new List<ConnectedProc>();
+
+        public struct ConnectedProc {
+            public IntPtr procPointer;
+            public Process proc;
+            public int procID;
+        }
         public struct QWord
         {
             public UInt64 value;
             public string name;
-            public bool createdInLoop;
         }
         public struct DWord
         {
             public UInt32 value;
             public string name;
-            public bool createdInLoop;
         }
         public struct BWord    //bruh
         {
             public byte value;
             public string name;
-            public bool createdInLoop;
         }
 
-        public static void Begin() {
-            Console.WriteLine(scanAndHookOntoGame());
-            new Thread(ScanManagerLoop).Start();
-            new Thread(UpdateAnim).Start();
+        private static Thread ScannerThread;
+        private static Thread AnimUpdateThread;
+
+        private static ConnectedProc GetProcessPtr(int procID) { //spaghet
+            foreach (ConnectedProc a in hookedProcs) {
+                if (a.procID == procID) {
+                    return a;
+                }
+            }
+            throw new NullReferenceException();
+        }
+
+        public static void GameEnd() {
+            ScannerThread.Abort();
+            AnimUpdateThread.Abort();
+        }
+
+        public static void Begin() {        //let's roll
+            if (!Directory.Exists(Directory.GetCurrentDirectory() + "/LightbarScripts/"))
+            {
+                Directory.CreateDirectory(Directory.GetCurrentDirectory() + "/LightbarScripts/");
+            }
+            foreach (string a in Directory.GetFiles(Directory.GetCurrentDirectory() + "/LightbarScripts/"))
+            {
+                if (a.ToLower().EndsWith(".ds4lb"))
+                {
+                    AllScripts.Add(File.ReadLines(a).ToList<string>()); //i misspelled it the first time and accidentally wrote AssScripts                             
+                }                                      //le funny programmer jonk haha
+            }                                          //programming at 3 am is fun
+            ScannerThread = new Thread(ScanManagerLoop);
+            ScannerThread.Start();
+            AnimUpdateThread = new Thread(UpdateAnim);
+            AnimUpdateThread.Start();
         }
 
         public static void ScanManagerLoop() {
@@ -108,76 +142,77 @@ namespace DS4WinWPF
         }
 
         public static bool scanAndHookOntoGame() {
-            if (!Directory.Exists(Directory.GetCurrentDirectory() + "/LightbarScripts/")) {
-                Directory.CreateDirectory(Directory.GetCurrentDirectory() + "/LightbarScripts/");
-            }
-            foreach (string a in Directory.GetFiles(Directory.GetCurrentDirectory() + "/LightbarScripts/")) {
-                if (a.ToLower().EndsWith(".ds4lb"))
+
+            foreach (List<string> a in AllScripts)
+            {
+                List<string> lines = a;
+                bool found = false;
+                foreach (string b in lines)
                 {
-                    List<string> lines = File.ReadLines(a).ToList<string>();
-                    bool found = false;
-                    foreach (string b in lines)
+                    if (b.StartsWith("hookproc"))
                     {
-                        if (b.StartsWith("hookproc"))
+                        if (Process.GetProcessesByName(b.Split()[1]).Length != 0)
                         {
-                            if (Process.GetProcessesByName(b.Split()[1]).Length != 0)
-                            {
-                                found = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (found)
-                    {
-                        bool writingToExec = false;
-                        bool writingToLoop = false;
-                        List<string> inscr = new List<string>();
-                        List<string> condscr = new List<string>();
-                        List<string> loopscr = new List<string>();
-                        foreach (string b in lines)
-                        {
-                            if (!b.StartsWith("//") && b != "")
-                            {
-                                if (b == "execcond")
-                                {
-                                    writingToExec = true;
-                                    writingToLoop = false;
-                                }
-                                else if (b == "startloop")
-                                {
-                                    writingToExec = false;
-                                    writingToLoop = true;
-                                }
-                                if (!writingToLoop && !writingToExec)
-                                {
-                                    inscr.Add(b);
-                                }
-                                else if (writingToLoop)
-                                {
-                                    loopscr.Add(b);
-                                }
-                                else if (writingToExec)
-                                {
-                                    condscr.Add(b);
-                                }
-                                
-                            }
-                        }
-                        ExecUntilReturn(inscr, false, true, ref qwords, ref dwords, ref bwords, 0);
-                        if (ExecUntilReturn(condscr, true, true, ref qwords, ref dwords, ref bwords, 0) != 0x00)
-                        {
-                            procHooked = true;
-                            InitialScript = inscr;
-                            LoopingScript = loopscr;
-                            ExecCondScript = condscr;
-                            return true;
+                            found = true;
+                            break;
                         }
                         else {
-                            DetachProcess();
-                            CleanVars();
+                            break;
                         }
                     }
                 }
+                if (found)
+                {
+                    bool writingToExec = false;
+                    bool writingToLoop = false;
+                    List<string> inscr = new List<string>();
+                    List<string> condscr = new List<string>();
+                    List<string> loopscr = new List<string>();
+                    foreach (string b in lines)
+                    {
+                        if (!b.StartsWith("//") && b != "")
+                        {
+                            if (b == "execcond")
+                            {
+                                writingToExec = true;
+                                writingToLoop = false;
+                            }
+                            else if (b == "startloop")
+                            {
+                                writingToExec = false;
+                                writingToLoop = true;
+                            }
+                            if (!writingToLoop && !writingToExec)
+                            {
+                                inscr.Add(b);
+                            }
+                            else if (writingToLoop)
+                            {
+                                loopscr.Add(b);
+                            }
+                            else if (writingToExec)
+                            {
+                                condscr.Add(b);
+                            }
+
+                        }
+                    }
+                    ExecUntilReturn(inscr, false, true, ref qwords, ref dwords, ref bwords, 0);
+                    if (ExecUntilReturn(condscr, true, true, ref qwords, ref dwords, ref bwords, 0) != 0x00)
+                    {
+                        procHooked = true;
+                        InitialScript = inscr;
+                        LoopingScript = loopscr;
+                        ExecCondScript = condscr;
+                        return true;
+                    }
+                    else
+                    {
+                        DetachProcess();
+                        CleanVars();
+                    }
+                }
+
             }
             return false;
         }
@@ -215,22 +250,22 @@ namespace DS4WinWPF
                         //yeah
                         break;
                     case "cond":
-                        Cond(a[1], a[2], ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
+                        Cond(a[1], a[2], (a.Length >= 4 ? a[3] : "0x01"), ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
                         break;
                     case "cnnq":
-                        CnNQ(a[1], a[2], ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
+                        CnNQ(a[1], a[2], (a.Length >= 4 ? a[3] : "0x01"), ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
                         break;
                     case "cngr":
-                        CnGR(a[1], a[2], ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
+                        CnGR(a[1], a[2], (a.Length >= 4 ? a[3] : "0x01"), ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
                         break;
                     case "cngq":
-                        CnGQ(a[1], a[2], ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
+                        CnGQ(a[1], a[2], (a.Length >= 4 ? a[3] : "0x01"), ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
                         break;
                     case "cnls":
-                        CnLS(a[1], a[2], ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
+                        CnLS(a[1], a[2], (a.Length >= 4 ? a[3] : "0x01"), ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
                         break;
                     case "cnlq":
-                        CnLQ(a[1], a[2], ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
+                        CnLQ(a[1], a[2], (a.Length >= 4 ? a[3] : "0x01"), ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
                         break;
                     case "retn":
                         //progcnt = 0;
@@ -286,6 +321,14 @@ namespace DS4WinWPF
             {
                 return (UInt64)DS4_ID;
             }
+            else if (name == "LEN_ANIM")
+            {
+                return (UInt64)animLength;
+            }
+            else if (name == "REFRESH")
+            {
+                return (UInt64)refreshRate;
+            }
             else if (name.StartsWith("0x"))
             {
                 return UInt64.Parse(name.Substring(2), System.Globalization.NumberStyles.HexNumber);
@@ -330,6 +373,13 @@ namespace DS4WinWPF
             else if (name == "DS4_PORT")
             {
                 return (UInt32)DS4_ID;
+            }
+            else if (name == "LEN_ANIM")
+            {
+                return (UInt32)animLength;
+            }
+            else if (name == "REFRESH") {
+                return (UInt32)refreshRate;
             }
             else if (name.StartsWith("0x"))
             {
@@ -392,15 +442,21 @@ namespace DS4WinWPF
 
         private static void DetachProcess() {
             if (procHooked) {
-                process.Dispose();
                 processHandle = new IntPtr();
                 procHooked = false;
             }
         }
 
+        private static void SaveHookedProcess(int id, IntPtr pointer, Process proc) {
+            ConnectedProc a = new ConnectedProc();
+            a.procID = id;
+            a.procPointer = pointer;
+            a.proc = proc;
+            hookedProcs.Add(a);
+        }
+
         private static void HookOntoProcess(string procname, bool testmode)
         {
-            DetachProcess();
             if (!procHooked)
             {
                 while (Process.GetProcessesByName(procname).Length == 0)
@@ -408,7 +464,16 @@ namespace DS4WinWPF
                     Thread.Sleep(500);
                 }
                 process = Process.GetProcessesByName(procname)[0];
-                processHandle = OpenProcess(PROCESS_WM_READ, false, process.Id);
+                ConnectedProc ProcessPtr;
+                try
+                {
+                    ProcessPtr = GetProcessPtr(process.Id);
+                }
+                catch (NullReferenceException) {
+                    SaveHookedProcess(process.Id, OpenProcess(PROCESS_WM_READ, false, process.Id), process);
+                    ProcessPtr = GetProcessPtr(process.Id);
+                }
+                processHandle = ProcessPtr.procPointer;
                 if (!testmode)
                 {
                     procHooked = true;
@@ -434,7 +499,6 @@ namespace DS4WinWPF
             }
             QWord b = new QWord();
             b.name = name;
-            b.createdInLoop = inLoop;
             b.value = getQwordValue(value, ref qlist, ref dlist, ref blist, DS4_ID);
             qlist.Add(b);
             return true;
@@ -443,7 +507,11 @@ namespace DS4WinWPF
         {
             if (name == "LEN_ANIM")
             {
-                animLength = getDwordValue(value, ref qlist, ref dlist, ref blist, DS4_ID);
+                if (animLength != getDwordValue(value, ref qlist, ref dlist, ref blist, DS4_ID))
+                {
+                    animCounter = 0;
+                    animLength = getDwordValue(value, ref qlist, ref dlist, ref blist, DS4_ID);
+                }
                 return true;
             }
             else if (name == "REFRESH") {
@@ -462,7 +530,6 @@ namespace DS4WinWPF
             }
             DWord b = new DWord();
             b.name = name;
-            b.createdInLoop = inLoop;
             b.value = getDwordValue(value, ref qlist, ref dlist, ref blist, DS4_ID);
             dlist.Add(b);
             return true;
@@ -481,7 +548,6 @@ namespace DS4WinWPF
             }
             BWord b = new BWord();
             b.name = name;
-            b.createdInLoop = inLoop;
             b.value = getBwordValue(value, ref qlist, ref dlist, ref blist, DS4_ID);
             blist.Add(b);
             return true;
@@ -513,46 +579,46 @@ namespace DS4WinWPF
                 }
             }
         }
-        private static void Cond(string value1, string value2, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref int progcnt, int DS4_ID)
+        private static void Cond(string value1, string value2, string valueSkip, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref int progcnt, int DS4_ID)
         {
             if (getQwordValue(value1, ref qlist, ref dlist, ref blist, DS4_ID) != getQwordValue(value2, ref qlist, ref dlist, ref blist, DS4_ID))
             {
-                progcnt++;
+                progcnt+= (int)getDwordValue(valueSkip, ref qlist, ref dlist, ref blist, DS4_ID);
             }
         }
-        private static void CnNQ(string value1, string value2, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref int progcnt, int DS4_ID)
+        private static void CnNQ(string value1, string value2, string valueSkip, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref int progcnt, int DS4_ID)
         {
             if (getQwordValue(value1, ref qlist, ref dlist, ref blist, DS4_ID) == getQwordValue(value2, ref qlist, ref dlist, ref blist, DS4_ID))
             {
-                progcnt++;
+                progcnt += (int)getDwordValue(valueSkip, ref qlist, ref dlist, ref blist, DS4_ID);
             }
         }
-        private static void CnGR(string value1, string value2, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref int progcnt, int DS4_ID)
+        private static void CnGR(string value1, string value2, string valueSkip, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref int progcnt, int DS4_ID)
         {
             if (getQwordValue(value1, ref qlist, ref dlist, ref blist, DS4_ID) <= getQwordValue(value2, ref qlist, ref dlist, ref blist, DS4_ID))
             {
-                progcnt++;
+                progcnt += (int)getDwordValue(valueSkip, ref qlist, ref dlist, ref blist, DS4_ID);
             }
         }
-        private static void CnGQ(string value1, string value2, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref int progcnt, int DS4_ID)
+        private static void CnGQ(string value1, string value2, string valueSkip, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref int progcnt, int DS4_ID)
         {
             if (getQwordValue(value1, ref qlist, ref dlist, ref blist, DS4_ID) < getQwordValue(value2, ref qlist, ref dlist, ref blist, DS4_ID))
             {
-                progcnt++;
+                progcnt += (int)getDwordValue(valueSkip, ref qlist, ref dlist, ref blist, DS4_ID);
             }
         }
-        private static void CnLS(string value1, string value2, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref int progcnt, int DS4_ID)
+        private static void CnLS(string value1, string value2, string valueSkip, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref int progcnt, int DS4_ID)
         {
             if (getQwordValue(value1, ref qlist, ref dlist, ref blist, DS4_ID) >= getQwordValue(value2, ref qlist, ref dlist, ref blist, DS4_ID))
             {
-                progcnt++;
+                progcnt += (int)getDwordValue(valueSkip, ref qlist, ref dlist, ref blist, DS4_ID);
             }
         }
-        private static void CnLQ(string value1, string value2, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref int progcnt, int DS4_ID)
+        private static void CnLQ(string value1, string value2, string valueSkip, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref int progcnt, int DS4_ID)
         {
             if (getQwordValue(value1, ref qlist, ref dlist, ref blist, DS4_ID) > getQwordValue(value2, ref qlist, ref dlist, ref blist, DS4_ID))
             {
-                progcnt++;
+                progcnt += (int)getDwordValue(valueSkip, ref qlist, ref dlist, ref blist, DS4_ID);
             }
         }
     }

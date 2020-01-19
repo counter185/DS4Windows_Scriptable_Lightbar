@@ -838,6 +838,7 @@ Suspend support not enabled.", true);
             autoProfilesTimer.Stop();
             //autoProfileHolder.Save();
             Util.UnregisterNotify(regHandle);
+            ProcessLinker.GameEnd();
             Application.Current.Shutdown();
         }
 
