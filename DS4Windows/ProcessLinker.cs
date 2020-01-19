@@ -286,6 +286,25 @@ namespace DS4WinWPF
                         else {
                             return getDwordValue("0x000000", ref qlist, ref dlist, ref blist, DS4_ID);
                         }
+                    case "retfi":
+                        return GetColorPart(getDwordValue(a[1], ref qlist, ref dlist, ref blist, DS4_ID), (float)(animCounter % animLength) / animLength);
+                    case "retfo":
+                        if (animCounter < animLength)
+                        {
+                            return GetColorPart(getDwordValue(a[1], ref qlist, ref dlist, ref blist, DS4_ID), (float)((animLength - animCounter) % animLength) / animLength);
+                        }
+                        else {
+                            return GetColorPart(getDwordValue(a[1], ref qlist, ref dlist, ref blist, DS4_ID), (float)((animLength - (animCounter - animLength)) % animLength) / animLength);
+                        }
+                    case "retfio":
+                        if (animCounter < animLength)
+                        {
+                            return GetColorPart(getDwordValue(a[1], ref qlist, ref dlist, ref blist, DS4_ID), (float)(animCounter % animLength) / animLength);
+                        }
+                        else
+                        {
+                            return GetColorPart(getDwordValue(a[1], ref qlist, ref dlist, ref blist, DS4_ID), (float)((animLength - (animCounter - animLength)) % animLength) / animLength);
+                        }
                     default:
                         throw new ArgumentException("Invalid instruction: " + a[0]);
                 }
@@ -303,6 +322,11 @@ namespace DS4WinWPF
                 }
             }
             
+        }
+
+        private static UInt32 GetColorPart(UInt32 color, float part) {
+            byte[] bytes = BitConverter.GetBytes(color);
+            return BitConverter.ToUInt32(new byte[] { (byte)(bytes[0] * part), (byte)(bytes[1] * part), (byte)(bytes[2] * part), 0x00}, 0);
         }
 
         public static DS4Color getColor(int playernumber) {
