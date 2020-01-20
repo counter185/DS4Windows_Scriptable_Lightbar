@@ -26,7 +26,7 @@ namespace DS4WinWPF
 
         const int PROCESS_WM_READ = 0x0010;
 
-        public static volatile bool procHooked = false;
+        public static volatile LinkType procHooked = LinkType.NotHooked;
         private static volatile bool isInLoop = false;
 
         private static volatile UInt32 refreshRate = 128;
@@ -45,6 +45,12 @@ namespace DS4WinWPF
         private static DS4Color[] controllerColors = new DS4Color[5];
 
         private static List<ConnectedProc> hookedProcs = new List<ConnectedProc>();
+
+        public enum LinkType {
+            NotHooked = 0,
+            ProcHooked = 1,
+            ProcScanned = 2
+        }
 
         public struct ConnectedProc {
             public IntPtr procPointer;
@@ -98,25 +104,37 @@ namespace DS4WinWPF
                 if ((Global.getUseScripts(0) || Global.getUseScripts(1) || Global.getUseScripts(2) || Global.getUseScripts(3)))
                 {
                     for (int x = 0; x != hookedProcs.Count; x++) {
-                        if (hookedProcs[x].proc.HasExited) {
-                            hookedProcs.RemoveAt(x);
-                            x--;
+                        if (hookedProcs[x].proc != null)
+                        {
+                            if (hookedProcs[x].proc.HasExited)
+                            {
+                                hookedProcs.RemoveAt(x);
+                                x--;
+                            }
+                        }
+                        else {
+                            if (Process.GetProcessesByName(hookedProcs[x].procName).Length == 0) {
+                                if (procHooked == LinkType.ProcScanned)
+                                {
+                                    procHooked = LinkType.NotHooked;
+                                }
+                                hookedProcs.RemoveAt(x);
+                                x--;
+                            }
                         }
                     }
-                    if (!procHooked)
+                    if (procHooked == LinkType.NotHooked)
                     {
                         scanAndHookOntoGame();
                         
                     }
-                    if (procHooked && process.HasExited) {
-                        procHooked = false;
+                    if (procHooked == LinkType.ProcHooked && process.HasExited) {
+                        procHooked = LinkType.NotHooked;
                     }
-                    Thread.Sleep(2000);
+                    
 
                 }
-                else {
-                    Thread.Sleep(5000);
-                }
+                Thread.Sleep(2000);
             }
         }
 
@@ -151,8 +169,10 @@ namespace DS4WinWPF
                         {
                             ConnectedProc c = new ConnectedProc();
                             bool found = false;
-                            foreach (ConnectedProc d in hookedProcs) {
-                                if (d.procName == b.Split()[1]) {
+                            foreach (ConnectedProc d in hookedProcs)
+                            {
+                                if (d.procName == b.Split()[1])
+                                {
                                     c = d;
                                     found = true;
                                     break;
@@ -203,7 +223,7 @@ namespace DS4WinWPF
                             ExecUntilReturn(inscr, false, true, ref qwords, ref dwords, ref bwords, 0);
                             if (ExecUntilReturn(condscr, true, true, ref qwords, ref dwords, ref bwords, 0) != 0x00)
                             {
-                                procHooked = true;
+                                procHooked = LinkType.ProcHooked;
                                 InitialScript = inscr;
                                 LoopingScript = loopscr;
                                 ExecCondScript = condscr;
@@ -216,9 +236,61 @@ namespace DS4WinWPF
                             }
                             break;
                         }
-                        else {
+                        else
+                        {
                             break;
                         }
+                    }
+                    else if (b.StartsWith("scanproc")) {
+                        if (Process.GetProcessesByName(b.Split()[1]).Length != 0)
+                        {
+                            procHooked = LinkType.ProcScanned;
+                            Console.WriteLine("Process struct created");
+                            ConnectedProc c = new ConnectedProc();
+                            c.procName = b.Split()[1];
+                            hookedProcs.Add(c);
+                            bool writingToExec = false;
+                            bool writingToLoop = false;
+                            CleanVars();
+                            List<string> inscr = new List<string>();
+                            List<string> condscr = new List<string>();
+                            List<string> loopscr = new List<string>();
+                            foreach (string d in lines)
+                            {
+                                if (!d.StartsWith("//") && d != "")
+                                {
+                                    if (d == "execcond")
+                                    {
+                                        writingToExec = true;
+                                        writingToLoop = false;
+                                    }
+                                    else if (d == "startloop")
+                                    {
+                                        writingToExec = false;
+                                        writingToLoop = true;
+                                    }
+                                    if (!writingToLoop && !writingToExec)
+                                    {
+                                        inscr.Add(d);
+                                    }
+                                    else if (writingToLoop)
+                                    {
+                                        loopscr.Add(d);
+                                    }
+                                    else if (writingToExec)
+                                    {
+                                        condscr.Add(d);
+                                    }
+
+                                }
+                            }
+                            ExecUntilReturn(inscr, false, true, ref qwords, ref dwords, ref bwords, 0);
+                            InitialScript = inscr;
+                            LoopingScript = loopscr;
+                            ExecCondScript = condscr;
+                            return true;
+                        }
+                        break;
                     }
                 }
             }
@@ -330,7 +402,7 @@ namespace DS4WinWPF
         }
 
         public static DS4Color getColor(int playernumber) {
-            if (procHooked)
+            if (procHooked == LinkType.ProcHooked || procHooked == LinkType.ProcScanned)
             {
                 //This is a copy: verified
                 List<QWord> sandboxQwords = qwords.GetRange(0, qwords.Count);
@@ -347,6 +419,10 @@ namespace DS4WinWPF
         {
             if (name == "BASE_ADDRESS")
             {
+                if (procHooked == LinkType.ProcScanned)
+                {
+                    throw new ArgumentException("Cannot get base address in scanned process");
+                }
                 return (UInt64)process.MainModule.BaseAddress;
             }
             else if (name == "DS4_PORT")
@@ -400,6 +476,10 @@ namespace DS4WinWPF
         {
             if (name == "BASE_ADDRESS")
             {
+                if (procHooked == LinkType.ProcScanned)
+                {
+                    throw new ArgumentException("Cannot get base address in scanned process");
+                }
                 return (UInt32)process.MainModule.BaseAddress;
             }
             else if (name == "DS4_PORT")
@@ -473,15 +553,15 @@ namespace DS4WinWPF
         }
 
         private static void DetachProcess() {
-            if (procHooked) {
+            if (procHooked == LinkType.ProcHooked) {
                 processHandle = new IntPtr();
-                procHooked = false;
+                procHooked = LinkType.NotHooked;
             }
         }
 
         private static void HookOntoProcess(string procname, bool testmode)
         {
-            if (!procHooked)
+            if (procHooked == LinkType.NotHooked)
             {
                 while (Process.GetProcessesByName(procname).Length == 0)
                 {
@@ -491,7 +571,7 @@ namespace DS4WinWPF
                 processHandle = OpenProcess(PROCESS_WM_READ, false, process.Id);
                 if (!testmode)
                 {
-                    procHooked = true;
+                    procHooked = LinkType.ProcHooked;
                 }
             }
             else
