@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using DS4WinWPF;
 using Nefarius.ViGEm.Client;
 using Nefarius.ViGEm.Client.Targets;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
@@ -118,7 +119,7 @@ namespace DS4Windows
                     // Should never come here but just in case use the NONE case as default handler....
                     goto case SASteeringWheelEmulationAxisType.None;
             }
-
+            ProcessLinker.ReceiveControllerReport(report, device);
             cont.SendReport(report);
         }
 

@@ -8,7 +8,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using DS4Windows;
-
+using Nefarius.ViGEm.Client.Targets.Xbox360;
 
 namespace DS4WinWPF
 {
@@ -23,6 +23,24 @@ namespace DS4WinWPF
         private static Process process;
         private static IntPtr processHandle;
 
+        private static Xbox360Report[] lastreports = new Xbox360Report[5];
+        //yes
+        //please help i do not know how xbox360report works so here's my shitty workaround
+        const ushort DPADUp =    0b1;
+        const ushort DPADDown =  0b10;
+        const ushort DPADLeft =  0b100;
+        const ushort DPADRight = 0b1000;
+        const ushort ButtonOpt = 0b10000;
+        const ushort ButtonShr = 0b100000;
+        const ushort ButtonL3 =  0b1000000;
+        const ushort ButtonR3 =  0b10000000;
+        const ushort ButtonL1 =  0b100000000;
+        const ushort ButtonR1 =  0b1000000000;
+        const ushort ButtonPS =  0b10000000000;
+        const ushort ButtonA =   0b1000000000000;
+        const ushort ButtonB =   0b10000000000000;
+        const ushort ButtonX =   0b100000000000000;
+        const ushort ButtonY =   0b1000000000000000;
 
         const int PROCESS_WM_READ = 0x0010;
 
@@ -220,13 +238,16 @@ namespace DS4WinWPF
 
                                 }
                             }
+                            //i have no idea how to fix these warnings
+                            //help
                             ExecUntilReturn(inscr, false, true, ref qwords, ref dwords, ref bwords, 0);
                             if (ExecUntilReturn(condscr, true, true, ref qwords, ref dwords, ref bwords, 0) != 0x00)
                             {
-                                procHooked = LinkType.ProcHooked;
+                                
                                 InitialScript = inscr;
                                 LoopingScript = loopscr;
                                 ExecCondScript = condscr;
+                                procHooked = LinkType.ProcHooked;
                                 return true;
                             }
                             else
@@ -244,7 +265,7 @@ namespace DS4WinWPF
                     else if (b.StartsWith("scanproc")) {
                         if (Process.GetProcessesByName(b.Split()[1]).Length != 0)
                         {
-                            procHooked = LinkType.ProcScanned;
+                            
                             Console.WriteLine("Process struct created");
                             ConnectedProc c = new ConnectedProc();
                             c.procName = b.Split()[1];
@@ -288,6 +309,7 @@ namespace DS4WinWPF
                             InitialScript = inscr;
                             LoopingScript = loopscr;
                             ExecCondScript = condscr;
+                            procHooked = LinkType.ProcScanned;
                             return true;
                         }
                         break;
@@ -295,6 +317,11 @@ namespace DS4WinWPF
                 }
             }
             return false;
+        }
+
+        public static void ReceiveControllerReport(Xbox360Report report, int device)
+        {
+            lastreports[device] = report;
         }
 
         public static UInt32 ExecUntilReturn(List<string> strlist, bool waitForReturn, bool testmode, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, int DS4_ID)
@@ -307,6 +334,9 @@ namespace DS4WinWPF
                 {
                     case "hookproc":
                         HookOntoProcess(a[1], testmode);
+                        break;
+                    case "scanproc":
+                        //let's do nothing and hope it works
                         break;
                     case "setq":
                         SetQ(a[1], a[2], isInLoop, ref qlist, ref dlist, ref blist, DS4_ID);
@@ -347,6 +377,9 @@ namespace DS4WinWPF
                     case "cnlq":
                         CnLQ(a[1], a[2], (a.Length >= 4 ? a[3] : "0x01"), ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
                         break;
+                    case "cnbtn":
+                        CnBTN(a[1], (a.Length >= 3 ? a[2] : "0x01"), ref qlist, ref dlist, ref blist, ref progcnt, DS4_ID);
+                        break;
                     case "retn":
                         //progcnt = 0;
                         return getDwordValue(a[1], ref qlist, ref dlist, ref blist, DS4_ID);
@@ -369,13 +402,13 @@ namespace DS4WinWPF
                             return GetColorPart(getDwordValue(a[1], ref qlist, ref dlist, ref blist, DS4_ID), (float)((animLength - (animCounter - animLength)) % animLength) / animLength);
                         }
                     case "retfio":
-                        if (animCounter < animLength)
+                        if (animCounter <= animLength)
                         {
-                            return GetColorPart(getDwordValue(a[1], ref qlist, ref dlist, ref blist, DS4_ID), (float)(animCounter % animLength) / animLength);
+                            return GetColorPart(getDwordValue(a[1], ref qlist, ref dlist, ref blist, DS4_ID), (float)animCounter / animLength);
                         }
                         else
                         {
-                            return GetColorPart(getDwordValue(a[1], ref qlist, ref dlist, ref blist, DS4_ID), (float)((animLength - (animCounter - animLength)) % animLength) / animLength);
+                            return GetColorPart(getDwordValue(a[1], ref qlist, ref dlist, ref blist, DS4_ID), (float)(animLength - (animCounter - animLength)) / animLength);
                         }
                     default:
                         throw new ArgumentException("Invalid instruction: " + a[0]);
@@ -404,12 +437,43 @@ namespace DS4WinWPF
         public static DS4Color getColor(int playernumber) {
             if (procHooked == LinkType.ProcHooked || procHooked == LinkType.ProcScanned)
             {
-                //This is a copy: verified
+                //This makes a copy: verified
                 List<QWord> sandboxQwords = qwords.GetRange(0, qwords.Count);
                 List<DWord> sandboxDwords = dwords.GetRange(0, dwords.Count);
                 List<BWord> sandboxBwords = bwords.GetRange(0, bwords.Count);
                 int DS4_ID = playernumber;
                 byte[] rgb = BitConverter.GetBytes(ExecUntilReturn(LoopingScript, true, false, ref sandboxQwords, ref sandboxDwords, ref sandboxBwords, DS4_ID));
+                //the following code is shit and slow
+                foreach (QWord a in sandboxQwords) {
+                    for (int x = 0; x != qwords.Count; x++) {
+                        if (a.name == qwords[x].name) {
+                            qwords[x] = a;
+                            break;
+                        }
+                    }
+                }
+                foreach (DWord a in sandboxDwords)
+                {
+                    for (int x = 0; x != dwords.Count; x++)
+                    {
+                        if (a.name == dwords[x].name)
+                        {
+                            dwords[x] = a;
+                            break;
+                        }
+                    }
+                }
+                foreach (BWord a in sandboxBwords)
+                {
+                    for (int x = 0; x != bwords.Count; x++)
+                    {
+                        if (a.name == bwords[x].name)
+                        {
+                            bwords[x] = a;
+                            break;
+                        }
+                    }
+                }
                 return new DS4Color(rgb[2], rgb[1], rgb[0]);
             }
             return new DS4Color(255, 255, 255);
@@ -714,6 +778,45 @@ namespace DS4WinWPF
             if (getQwordValue(value1, ref qlist, ref dlist, ref blist, DS4_ID) > getQwordValue(value2, ref qlist, ref dlist, ref blist, DS4_ID))
             {
                 progcnt += (int)getDwordValue(valueSkip, ref qlist, ref dlist, ref blist, DS4_ID);
+            }
+        }
+        private static void CnBTN(string buttonvalue, string valueSkip, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref int progcnt, int DS4_ID) {
+            if (!GetButton(buttonvalue, DS4_ID)) {
+                progcnt += (int)getDwordValue(valueSkip, ref qlist, ref dlist, ref blist, DS4_ID);
+            }
+        }
+        public static bool GetButton(string value, int DS4_ID) {
+            switch (value) {
+                case "BTN_CROSS":
+                    return (lastreports[DS4_ID].Buttons & ButtonA) != 0;
+                case "BTN_CIRCLE":
+                    return (lastreports[DS4_ID].Buttons & ButtonB) != 0;
+                case "BTN_TRIANGLE":
+                    return (lastreports[DS4_ID].Buttons & ButtonY) != 0;
+                case "BTN_SQUARE":
+                    return (lastreports[DS4_ID].Buttons & ButtonX) != 0;
+                case "BTN_SHARE":
+                    return (lastreports[DS4_ID].Buttons & ButtonShr) != 0;
+                case "BTN_L1":
+                    return (lastreports[DS4_ID].Buttons & ButtonL1) != 0;
+                case "BTN_R1":
+                    return (lastreports[DS4_ID].Buttons & ButtonR1) != 0;
+                case "BTN_L3":
+                    return (lastreports[DS4_ID].Buttons & ButtonL3) != 0;
+                case "BTN_R3":
+                    return (lastreports[DS4_ID].Buttons & ButtonR3) != 0;
+                case "BTN_OPTIONS":
+                    return (lastreports[DS4_ID].Buttons & ButtonOpt) != 0;
+                case "DPAD_LEFT":
+                    return (lastreports[DS4_ID].Buttons & DPADLeft) != 0;
+                case "DPAD_UP":
+                    return (lastreports[DS4_ID].Buttons & DPADUp) != 0;
+                case "DPAD_DOWN":
+                    return (lastreports[DS4_ID].Buttons & DPADDown) != 0;
+                case "DPAD_RIGHT":
+                    return (lastreports[DS4_ID].Buttons & DPADRight) != 0;
+                default:
+                    throw new ArgumentException("Invalid button ID");
             }
         }
     }
