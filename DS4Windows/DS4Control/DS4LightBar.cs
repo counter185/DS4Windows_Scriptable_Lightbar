@@ -45,7 +45,7 @@ namespace DS4Windows
             DS4Color color;
             if (!defaultLight && !forcelight[deviceNum])
             {
-                if (ProcessLinker.procHooked == ProcessLinker.LinkType.NotHooked && !getUseScripts(deviceNum))
+                if (ProcessLinker.procHooked == ProcessLinker.LinkType.NotHooked || !getUseScripts(deviceNum))
                 {
                     if (getUseCustomLed(deviceNum))
                     {
