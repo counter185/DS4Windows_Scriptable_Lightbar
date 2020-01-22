@@ -57,6 +57,9 @@ namespace DS4WinWPF
         private static volatile List<QWord> qwords = new List<QWord>();
         private static volatile List<DWord> dwords = new List<DWord>();
         private static volatile List<BWord> bwords = new List<BWord>();
+        private static volatile List<QWord> initialqwords = new List<QWord>();
+        private static volatile List<DWord> initialdwords = new List<DWord>();
+        private static volatile List<BWord> initialbwords = new List<BWord>();
 
         private static List<List<string>> AllScripts = new List<List<string>>();
 
@@ -146,7 +149,7 @@ namespace DS4WinWPF
                         scanAndHookOntoGame();
                         
                     }
-                    if (procHooked == LinkType.ProcHooked && process.HasExited) {
+                    if (procHooked == LinkType.ProcHooked && (process.HasExited || !CheckScriptConditions())) {
                         procHooked = LinkType.NotHooked;
                     }
                     
@@ -172,6 +175,14 @@ namespace DS4WinWPF
             qwords.Clear();
             dwords.Clear();
             bwords.Clear();
+            initialqwords.Clear();
+            initialdwords.Clear();
+            initialbwords.Clear();
+        }
+
+        public static bool CheckScriptConditions() {
+            Console.WriteLine("boutta check script conditions lol");
+            return ExecUntilReturn(ExecCondScript, true, true, ref initialqwords, ref initialdwords, ref initialbwords, 0) != 0x00;
         }
 
         public static bool scanAndHookOntoGame() {
@@ -241,9 +252,11 @@ namespace DS4WinWPF
                             //i have no idea how to fix these warnings
                             //help
                             ExecUntilReturn(inscr, false, true, ref qwords, ref dwords, ref bwords, 0);
+                            initialqwords = qwords.GetRange(0, qwords.Count);
+                            initialdwords = dwords.GetRange(0, dwords.Count);
+                            initialbwords = bwords.GetRange(0, bwords.Count);
                             if (ExecUntilReturn(condscr, true, true, ref qwords, ref dwords, ref bwords, 0) != 0x00)
                             {
-                                
                                 InitialScript = inscr;
                                 LoopingScript = loopscr;
                                 ExecCondScript = condscr;
