@@ -57,9 +57,11 @@ namespace DS4WinWPF
         private static volatile List<QWord> qwords = new List<QWord>();
         private static volatile List<DWord> dwords = new List<DWord>();
         private static volatile List<BWord> bwords = new List<BWord>();
+        private static volatile List<FWord> fwords = new List<FWord>();
         private static volatile List<QWord> initialqwords = new List<QWord>();
         private static volatile List<DWord> initialdwords = new List<DWord>();
         private static volatile List<BWord> initialbwords = new List<BWord>();
+        private static volatile List<FWord> initialfwords = new List<FWord>();
 
         private static List<List<string>> AllScripts = new List<List<string>>();
 
@@ -91,6 +93,11 @@ namespace DS4WinWPF
         public struct BWord    //bruh
         {
             public byte value;
+            public string name;
+        }
+        public struct FWord
+        {
+            public float value;
             public string name;
         }
 
@@ -175,14 +182,15 @@ namespace DS4WinWPF
             qwords.Clear();
             dwords.Clear();
             bwords.Clear();
+            fwords.Clear();
             initialqwords.Clear();
             initialdwords.Clear();
             initialbwords.Clear();
+            initialfwords.Clear();
         }
 
         public static bool CheckScriptConditions() {
-            Console.WriteLine("boutta check script conditions lol");
-            return ExecUntilReturn(ExecCondScript, true, true, ref initialqwords, ref initialdwords, ref initialbwords, 0) != 0x00;
+            return ExecUntilReturn(ExecCondScript, true, true, ref initialqwords, ref initialdwords, ref initialbwords, ref initialfwords, 0) != 0x00;
         }
 
         public static bool scanAndHookOntoGame() {
@@ -212,6 +220,7 @@ namespace DS4WinWPF
                                 Console.WriteLine("Process struct created");
                                 c.proc = Process.GetProcessesByName(b.Split()[1])[0];
                                 c.procName = b.Split()[1];
+                                Console.WriteLine("Hooking onto process");
                                 c.procPointer = OpenProcess(PROCESS_WM_READ, false, c.proc.Id);
                                 hookedProcs.Add(c);
                             }
@@ -251,11 +260,12 @@ namespace DS4WinWPF
                             }
                             //i have no idea how to fix these warnings
                             //help
-                            ExecUntilReturn(inscr, false, true, ref qwords, ref dwords, ref bwords, 0);
+                            ExecUntilReturn(inscr, false, true, ref qwords, ref dwords, ref bwords, ref fwords, 0);
                             initialqwords = qwords.GetRange(0, qwords.Count);
                             initialdwords = dwords.GetRange(0, dwords.Count);
                             initialbwords = bwords.GetRange(0, bwords.Count);
-                            if (ExecUntilReturn(condscr, true, true, ref qwords, ref dwords, ref bwords, 0) != 0x00)
+                            initialfwords = fwords.GetRange(0, bwords.Count);
+                            if (ExecUntilReturn(condscr, true, true, ref qwords, ref dwords, ref bwords, ref fwords, 0) != 0x00)
                             {
                                 InitialScript = inscr;
                                 LoopingScript = loopscr;
@@ -318,7 +328,7 @@ namespace DS4WinWPF
 
                                 }
                             }
-                            ExecUntilReturn(inscr, false, true, ref qwords, ref dwords, ref bwords, 0);
+                            ExecUntilReturn(inscr, false, true, ref qwords, ref dwords, ref bwords, ref fwords, 0);
                             InitialScript = inscr;
                             LoopingScript = loopscr;
                             ExecCondScript = condscr;
@@ -337,7 +347,7 @@ namespace DS4WinWPF
             lastreports[device] = report;
         }
 
-        public static UInt32 ExecUntilReturn(List<string> strlist, bool waitForReturn, bool testmode, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, int DS4_ID)
+        public static UInt32 ExecUntilReturn(List<string> strlist, bool waitForReturn, bool testmode, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref List<FWord> flist, int DS4_ID)
         {
             int progcnt = 0;
             while (true)
@@ -360,11 +370,20 @@ namespace DS4WinWPF
                     case "setb":
                         SetB(a[1], a[2], isInLoop, ref qlist, ref dlist, ref blist, DS4_ID);
                         break;
+                    case "setf":
+                        SetF(a[1], a[2], isInLoop, ref qlist, ref dlist, ref blist, ref flist, DS4_ID);
+                        break;
                     case "addq":
                         AddQ(a[1], a[2], ref qlist, ref dlist, ref blist, DS4_ID);
                         break;
                     case "addd":
                         AddD(a[1], a[2], ref qlist, ref dlist, ref blist, DS4_ID);
+                        break;
+                    case "divf":
+                        DivF(a[1], a[2], ref qlist, ref dlist, ref blist, ref flist, DS4_ID);
+                        break;
+                    case "modf":
+                        ModF(a[1], a[2], isInLoop, ref qlist, ref dlist, ref blist, ref flist, DS4_ID);
                         break;
                     case "startloop":
                         isInLoop = true;
@@ -396,6 +415,8 @@ namespace DS4WinWPF
                     case "retn":
                         //progcnt = 0;
                         return getDwordValue(a[1], ref qlist, ref dlist, ref blist, DS4_ID);
+                    case "retpt":
+                        return GetColorPart(getDwordValue(a[1], ref qlist, ref dlist, ref blist, DS4_ID), getFwordValue(a[2], ref qlist, ref dlist, ref blist, ref flist, DS4_ID));
                     case "retf":
                         if (animCounter < animLength)
                         {
@@ -454,8 +475,9 @@ namespace DS4WinWPF
                 List<QWord> sandboxQwords = qwords.GetRange(0, qwords.Count);
                 List<DWord> sandboxDwords = dwords.GetRange(0, dwords.Count);
                 List<BWord> sandboxBwords = bwords.GetRange(0, bwords.Count);
+                List<FWord> sandboxFwords = fwords.GetRange(0, fwords.Count);
                 int DS4_ID = playernumber;
-                byte[] rgb = BitConverter.GetBytes(ExecUntilReturn(LoopingScript, true, false, ref sandboxQwords, ref sandboxDwords, ref sandboxBwords, DS4_ID));
+                byte[] rgb = BitConverter.GetBytes(ExecUntilReturn(LoopingScript, true, false, ref sandboxQwords, ref sandboxDwords, ref sandboxBwords, ref sandboxFwords, DS4_ID));
                 //the following code is shit and slow
                 foreach (QWord a in sandboxQwords) {
                     for (int x = 0; x != qwords.Count; x++) {
@@ -487,6 +509,17 @@ namespace DS4WinWPF
                         }
                     }
                 }
+                foreach (FWord a in sandboxFwords)
+                {
+                    for (int x = 0; x != fwords.Count; x++)
+                    {
+                        if (a.name == fwords[x].name)
+                        {
+                            fwords[x] = a;
+                            break;
+                        }
+                    }
+                }
                 return new DS4Color(rgb[2], rgb[1], rgb[0]);
             }
             return new DS4Color(255, 255, 255);
@@ -500,6 +533,8 @@ namespace DS4WinWPF
                 {
                     throw new ArgumentException("Cannot get base address in scanned process");
                 }
+                //Sometimes this throws a System.ComponentModel.Win32Exception
+                //and i have no idea why
                 return (UInt64)process.MainModule.BaseAddress;
             }
             else if (name == "DS4_PORT")
@@ -517,6 +552,9 @@ namespace DS4WinWPF
             else if (name.StartsWith("0x"))
             {
                 return UInt64.Parse(name.Substring(2), System.Globalization.NumberStyles.HexNumber);
+            }
+            else if (name.StartsWith("q:") || name.StartsWith("d:") || name.StartsWith("b:")) {
+                return UInt64.Parse(name.Substring(2));
             }
             else if (name.StartsWith("mem:"))
             {
@@ -574,6 +612,10 @@ namespace DS4WinWPF
             {
                 return UInt32.Parse(name.Substring(2), System.Globalization.NumberStyles.HexNumber);
             }
+            else if (name.StartsWith("d:") || name.StartsWith("b:"))
+            {
+                return UInt32.Parse(name.Substring(2));
+            }
             else if (name.StartsWith("mem:"))
             {
                 byte[] buffer = new byte[4];
@@ -612,6 +654,10 @@ namespace DS4WinWPF
             {
                 return byte.Parse(name.Substring(2), System.Globalization.NumberStyles.HexNumber);
             }
+            else if (name.StartsWith("b:"))
+            {
+                return byte.Parse(name.Substring(2));
+            }
             else if (name.StartsWith("mem:"))
             {
                 byte[] buffer = new byte[1];
@@ -626,6 +672,22 @@ namespace DS4WinWPF
                     return a.value;
                 }
             }
+            throw new ArgumentException("Value Error");
+        }
+
+        private static float getFwordValue(string name, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref List<FWord> flist, int DS4_ID) {
+            if (name.StartsWith("f:"))
+            {
+                return float.Parse(name.Substring(2));
+            }
+            foreach (FWord a in flist)
+            {
+                if (a.name == name)
+                {
+                    return a.value;
+                }
+            }
+            return getQwordValue(name, ref qlist, ref dlist, ref blist, DS4_ID);
             throw new ArgumentException("Value Error");
         }
 
@@ -645,6 +707,7 @@ namespace DS4WinWPF
                     Thread.Sleep(500);
                 }
                 process = Process.GetProcessesByName(procname)[0];
+                Console.WriteLine("Hooking onto process");
                 processHandle = OpenProcess(PROCESS_WM_READ, false, process.Id);
                 if (!testmode)
                 {
@@ -655,6 +718,29 @@ namespace DS4WinWPF
             {
                 throw new ArgumentException("Process hooked twice");
             }
+        }
+
+        private static void ModF(string name, string value, bool inLoop, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref List<FWord> flist, int DS4_ID) {
+            SetF(name, "f:" + (getFwordValue(name, ref qlist, ref dlist, ref blist, ref flist, DS4_ID) % getFwordValue(value, ref qlist, ref dlist, ref blist, ref flist, DS4_ID)).ToString(), inLoop, ref qlist, ref dlist, ref blist, ref flist, DS4_ID);
+        }
+
+        private static bool SetF(string name, string value, bool inLoop, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref List<FWord> flist, int DS4_ID)
+        {
+            for (int idx = 0; idx != flist.Count; idx++)
+            {
+                if (flist[idx].name == name)
+                {
+                    FWord a = flist[idx];
+                    a.value = getFwordValue(value, ref qlist, ref dlist, ref blist, ref flist, DS4_ID);
+                    flist[idx] = a;
+                    return true;
+                }
+            }
+            FWord b = new FWord();
+            b.name = name;
+            b.value = getFwordValue(value, ref qlist, ref dlist, ref blist, ref flist, DS4_ID);
+            flist.Add(b);
+            return true;
         }
 
         private static bool SetQ(string name, string value, bool inLoop, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, int DS4_ID)
@@ -738,6 +824,19 @@ namespace DS4WinWPF
                 }
             }
         }
+        private static void SubQ(string name, string value, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, int DS4_ID)
+        {
+            for (int idx = 0; idx != qlist.Count; idx++)
+            {
+                if (qlist[idx].name == name)
+                {
+                    QWord a = qlist[idx];
+                    a.value -= getQwordValue(value, ref qlist, ref dlist, ref blist, DS4_ID);
+                    qlist[idx] = a;
+                    break;
+                }
+            }
+        }
         private static void AddD(string name, string value, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, int DS4_ID)
         {
             for (int idx = 0; idx != dlist.Count; idx++)
@@ -747,6 +846,32 @@ namespace DS4WinWPF
                     DWord a = dlist[idx];
                     a.value += getDwordValue(value, ref qlist, ref dlist, ref blist, DS4_ID);
                     dlist[idx] = a;
+                    break;
+                }
+            }
+        }
+        private static void SubD(string name, string value, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, int DS4_ID)
+        {
+            for (int idx = 0; idx != dlist.Count; idx++)
+            {
+                if (dlist[idx].name == name)
+                {
+                    DWord a = dlist[idx];
+                    a.value -= getDwordValue(value, ref qlist, ref dlist, ref blist, DS4_ID);
+                    dlist[idx] = a;
+                    break;
+                }
+            }
+        }
+        private static void DivF(string name, string value, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, ref List<FWord> flist, int DS4_ID)
+        {
+            for (int idx = 0; idx != flist.Count; idx++)
+            {
+                if (flist[idx].name == name)
+                {
+                    FWord a = flist[idx];
+                    a.value /= getFwordValue(value, ref qlist, ref dlist, ref blist, ref flist, DS4_ID);
+                    flist[idx] = a;
                     break;
                 }
             }
