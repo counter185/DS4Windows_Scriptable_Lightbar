@@ -50,6 +50,7 @@ namespace DS4WinWPF
         private static volatile UInt32 refreshRate = 128;
         private static volatile UInt32 animLength = 500;
         private static volatile UInt32 animCounter = 0;
+        private static volatile byte triggerMin = 1;
 
         private static volatile List<string> InitialScript = new List<string>();
         private static volatile List<string> LoopingScript = new List<string>();
@@ -537,6 +538,10 @@ namespace DS4WinWPF
                 //and i have no idea why
                 return (UInt64)process.MainModule.BaseAddress;
             }
+            else if (name == "TRG_MIN")
+            {
+                return (UInt64)triggerMin;
+            }
             else if (name == "DS4_PORT")
             {
                 return (UInt64)DS4_ID;
@@ -597,6 +602,10 @@ namespace DS4WinWPF
                 }
                 return (UInt32)process.MainModule.BaseAddress;
             }
+            else if (name == "TRG_MIN")
+            {
+                return (UInt32)triggerMin;
+            }
             else if (name == "DS4_PORT")
             {
                 return (UInt32)DS4_ID;
@@ -645,6 +654,9 @@ namespace DS4WinWPF
             if (name == "BASE_ADDRESS")
             {
                 throw new ArgumentException("Value Error: BASE_ADDRESS cannot be parsed to byte");
+            }
+            else if (name == "TRG_MIN") {
+                return triggerMin;
             }
             else if (name == "DS4_PORT")
             {
@@ -805,6 +817,9 @@ namespace DS4WinWPF
         }
         private static bool SetB(string name, string value, bool inLoop, ref List<QWord> qlist, ref List<DWord> dlist, ref List<BWord> blist, int DS4_ID)
         {
+            if (name == "TRG_MIN") {
+                triggerMin = getBwordValue(name, ref qlist, ref dlist, ref blist, DS4_ID);
+            }
             for (int idx = 0; idx != blist.Count; idx++)
             {
                 if (blist[idx].name == name)
@@ -964,6 +979,10 @@ namespace DS4WinWPF
                     return (lastreports[DS4_ID].Buttons & DPADDown) != 0;
                 case "DPAD_RIGHT":
                     return (lastreports[DS4_ID].Buttons & DPADRight) != 0;
+                case "TRG_L2":
+                    return lastreports[DS4_ID].LeftTrigger >= triggerMin;
+                case "TRG_R2":
+                    return lastreports[DS4_ID].RightTrigger >= triggerMin;
                 default:
                     throw new ArgumentException("Invalid button ID");
             }
