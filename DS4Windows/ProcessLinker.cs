@@ -220,7 +220,7 @@ namespace DS4WinWPF
                                 Console.WriteLine("Process struct created");
                                 c.proc = Process.GetProcessesByName(b.Split()[1])[0];
                                 c.procName = b.Split()[1];
-                                Console.WriteLine("Hooking onto process");
+                                Console.WriteLine("Hooking onto process: scanAndHookOntoGame");
                                 c.procPointer = OpenProcess(PROCESS_WM_READ, false, c.proc.Id);
                                 hookedProcs.Add(c);
                             }
@@ -706,9 +706,20 @@ namespace DS4WinWPF
                 {
                     Thread.Sleep(500);
                 }
-                process = Process.GetProcessesByName(procname)[0];
-                Console.WriteLine("Hooking onto process");
-                processHandle = OpenProcess(PROCESS_WM_READ, false, process.Id);
+                bool found = false;
+                foreach (ConnectedProc a in hookedProcs) {
+                    if (a.procName == procname) {
+                        process = a.proc;
+                        processHandle = a.procPointer;
+                        found = true;
+                    }
+                }
+                if (!found)
+                {
+                    process = Process.GetProcessesByName(procname)[0];
+                    Console.WriteLine("Hooking onto process: HookOntoProcess");
+                    processHandle = OpenProcess(PROCESS_WM_READ, false, process.Id);
+                }
                 if (!testmode)
                 {
                     procHooked = LinkType.ProcHooked;
