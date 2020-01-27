@@ -2448,6 +2448,9 @@ namespace DS4Windows
                 Node = m_Xdoc.CreateComment(string.Format(" DS4Windows Configuration Data. {0} ", DateTime.Now));
                 m_Xdoc.AppendChild(Node);
 
+                Node = m_Xdoc.CreateComment(string.Format(" Made with DS4Windows version {0} ", Global.exeversion));
+                m_Xdoc.AppendChild(Node);
+
                 Node = m_Xdoc.CreateWhitespace("\r\n");
                 m_Xdoc.AppendChild(Node);
 
@@ -4071,6 +4074,9 @@ namespace DS4Windows
             m_Xdoc.AppendChild(Node);
 
             Node = m_Xdoc.CreateComment(String.Format(" Profile Configuration Data. {0} ", DateTime.Now));
+            m_Xdoc.AppendChild(Node);
+
+            Node = m_Xdoc.CreateComment(string.Format(" Made with DS4Windows version {0} ", Global.exeversion));
             m_Xdoc.AppendChild(Node);
 
             Node = m_Xdoc.CreateWhitespace("\r\n");
