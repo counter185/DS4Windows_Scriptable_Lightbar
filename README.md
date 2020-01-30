@@ -1,17 +1,19 @@
-This is my fork of DS4Windows, that adds a scripting language that can read the memory of a process and control the players' lightbars accordingly
+This is my fork of DS4Windows, that adds a scripting language that can read the memory of a process and control the players' lightbars accordingly  
 
-I will make a documentation on how to write a script on the wiki soon
+I will make a documentation on how to write a script on the wiki soon  
 
-A sample script is included in a release package
+6 sample scripts are included, for now check them out if you want to know how to write your own script.  
 
-This script is for the European version of Super Mario 3D World running on Cemu, and will change the color of a player's lightbar depending on which character they choose
+Of course, the app hooks onto a process, so be careful with online games.  
 
-Of course, the app hooks onto a process, so be careful with hooking into online games.
+How to build:  
+- Import the Nefarius.ViGEm.Client DLL into the project  
+- Set the architecture from "Any CPU" to "x64".  
 
-How to build:
-- Import the Nefarius.ViGEm.Client DLL into the project
-- Set the architecture from "Any CPU" to "x64".
-This is so that we can read 64-bit addresses.
+Due to the nature of this fork, it likely won't ever get merged, which is why i'll just keep updating it here.  
+
+## TODO
+- Catch script runtime errors without crashing
 
 # Original description below
 
