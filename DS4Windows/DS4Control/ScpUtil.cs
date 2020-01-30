@@ -4948,7 +4948,8 @@ namespace DS4Windows
                         xinputStatus = true;
                     }
                 }
-                else if (oldContType != outputDevType[device])
+                else if (!dinputOnly[device] &&
+                    oldContType != outputDevType[device])
                 {
                     xinputPlug = true;
                     xinputStatus = true;

@@ -160,13 +160,15 @@ namespace DS4WinWPF
 
             SetUICulture(DS4Windows.Global.UseLang);
             DS4Windows.Global.LoadLinkedProfiles();
-            rootHub.LaunchHidGuardHelper();
             DS4Forms.MainWindow window = new DS4Forms.MainWindow(parser);
             MainWindow = window;
             window.Show();
-            window.CheckMinStatus();
             HwndSource source = PresentationSource.FromVisual(window) as HwndSource;
             CreateIPCClassNameMMF(source.Handle);
+
+            window.CheckMinStatus();
+            rootHub.LaunchHidGuardHelper();
+            window.LateChecks(parser);
         }
 
         private void App_DispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
@@ -431,9 +433,12 @@ namespace DS4WinWPF
 
         private void Application_Exit(object sender, ExitEventArgs e)
         {
-            Logger logger = logHolder.Logger;
-            logger.Info("Request App Shutdown");
-            CleanShutdown();
+            if (runShutdown)
+            {
+                Logger logger = logHolder.Logger;
+                logger.Info("Request App Shutdown");
+                CleanShutdown();
+            }
         }
 
         private void Application_SessionEnding(object sender, SessionEndingCancelEventArgs e)
